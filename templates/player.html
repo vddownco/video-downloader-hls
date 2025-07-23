@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Video Player - {{ task_id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1e1e1e;
+            color: #eee;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        header {
+            margin-bottom: 2rem;
+        }
+        h1 {
+            font-weight: normal;
+        }
+        video {
+            width: 80vw;
+            max-width: 900px;
+            height: auto;
+            border-radius: 8px;
+            background: black;
+            box-shadow: 0 0 10px #00bcd4;
+        }
+        a.back-link {
+            margin-top: 2rem;
+            color: #00bcd4;
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.3s ease;
+        }
+        a.back-link:hover {
+            color: #0097a7;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Video Player</h1>
+    <p>Task ID: {{ task_id }}</p>
+</header>
+
+<video id="video" controls></video>
+
+<a href="{{ url_for('index') }}" class="back-link">&larr; Back to Home</a>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+    const video = document.getElementById('video');
+    const playlistUrl = "{{ playlist_url }}";
+
+    if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(playlistUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+            video.play();
+        });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Some browsers (Safari) support HLS natively
+        video.src = playlistUrl;
+        video.addEventListener('loadedmetadata', function () {
+            video.play();
+        });
+    } else {
+        alert('Sorry, your browser does not support HLS playback.');
+    }
+</script>
+</body>
+</html>
