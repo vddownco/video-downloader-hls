@@ -6,7 +6,11 @@
     <title>Video Converter - MKV to HLS Stream</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -31,9 +35,20 @@
             text-align: center;
         }
 
-        .header h1 { font-size: 2.5rem; margin-bottom: 10px; font-weight: 300; }
-        .header p { opacity: 0.9; font-size: 1.1rem; }
-        .content { padding: 40px; }
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 40px;
+        }
 
         .input-group {
             margin-bottom: 30px;
@@ -47,16 +62,13 @@
             font-size: 1.1rem;
         }
 
-        .input-group input, .btn {
+        .input-group input {
             width: 100%;
             padding: 15px;
+            border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .input-group input {
-            border: 2px solid #e0e0e0;
+            transition: border-color 0.3s ease;
         }
 
         .input-group input:focus {
@@ -68,23 +80,138 @@
         .btn {
             background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
+            padding: 15px 30px;
             border: none;
+            border-radius: 8px;
             font-size: 1.1rem;
             font-weight: 600;
             cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            width: 100%;
         }
 
-        .btn:hover:not(:disabled) {
+        .btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
 
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
 
-        .progress-container { display: none; margin-top: 30px; }
-        .progress-info { display: flex; justify-content: space-between; margin-bottom: 10px; }
-        .progress-stage { font-weight: 600; color: #333; }
-        .progress-percentage { font-weight: 600; color: #667eea; }
+        .btn-secondary {
+            background: #28a745;
+            margin-top: 15px;
+        }
+
+        .btn-secondary:hover {
+            background: #218838;
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+
+        .stream-selection {
+            display: none;
+            margin-top: 30px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 25px;
+            background: #f8f9fa;
+        }
+
+        .stream-selection h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .stream-section {
+            margin-bottom: 25px;
+        }
+
+        .stream-section h4 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stream-limit-note {
+            font-size: 0.9rem;
+            color: #666;
+            font-weight: normal;
+        }
+
+        .stream-option {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            transition: border-color 0.2s ease;
+        }
+
+        .stream-option:hover {
+            border-color: #667eea;
+        }
+
+        .stream-option input[type="radio"] {
+            margin-right: 12px;
+            transform: scale(1.2);
+        }
+
+        .stream-info {
+            flex: 1;
+        }
+
+        .stream-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .stream-details {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .no-selection-option {
+            background: #f0f8ff;
+            border-color: #b3d9ff;
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .progress-stage {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .progress-percentage {
+            font-weight: 600;
+            color: #667eea;
+        }
 
         .progress-bar {
             width: 100%;
@@ -92,6 +219,7 @@
             background: #f0f0f0;
             border-radius: 10px;
             overflow: hidden;
+            position: relative;
         }
 
         .progress-fill {
@@ -105,21 +233,62 @@
         .progress-fill::after {
             content: '';
             position: absolute;
-            inset: 0;
-            background: repeating-linear-gradient(-45deg, rgba(255,255,255,.2) 0, rgba(255,255,255,.2) 12px, transparent 12px, transparent 25px);
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background-image: linear-gradient(
+                -45deg,
+                rgba(255, 255, 255, .2) 25%,
+                transparent 25%,
+                transparent 50%,
+                rgba(255, 255, 255, .2) 50%,
+                rgba(255, 255, 255, .2) 75%,
+                transparent 75%,
+                transparent
+            );
+            background-size: 50px 50px;
             animation: move 2s linear infinite;
         }
 
-        @keyframes move { to { background-position: 50px 50px; } }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes move {
+            0% {
+                background-position: 0 0;
+            }
+            100% {
+                background-position: 50px 50px;
+            }
+        }
 
-        .status-message { margin-top: 20px; padding: 15px; border-radius: 8px; font-weight: 500; }
-        .status-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .status-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status-message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-info {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #b3d7ff;
+        }
 
         .player-link {
             display: inline-block;
-            margin: 15px 10px 0 0;
+            margin-top: 15px;
+            margin-right: 10px;
             padding: 12px 25px;
             background: #28a745;
             color: white;
@@ -129,16 +298,21 @@
             transition: background 0.3s ease;
         }
 
-        .player-link:hover { background: #218838; }
+        .player-link:hover {
+            background: #218838;
+        }
 
         .history {
             margin-top: 40px;
             border-top: 2px solid #f0f0f0;
             padding-top: 30px;
-            display: none;
         }
 
-        .history h3 { color: #333; margin-bottom: 20px; font-size: 1.3rem; }
+        .history h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
 
         .task-item {
             background: #f8f9fa;
@@ -148,8 +322,17 @@
             border-left: 4px solid #667eea;
         }
 
-        .task-url { word-break: break-all; color: #666; margin-bottom: 8px; }
-        .task-status { display: flex; justify-content: space-between; align-items: center; }
+        .task-url {
+            word-break: break-all;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .task-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
         .loading-spinner {
             display: inline-block;
@@ -160,13 +343,17 @@
             border-top-color: #667eea;
             animation: spin 2s ease-in-out infinite;
         }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
         <h1>🎬 Video Converter</h1>
-        <p>Convert MKV files to HLS format from any link</p>
+        <p>Convert MKV files to HLS format with stream selection</p>
     </div>
 
     <div class="content">
@@ -175,8 +362,42 @@
                 <label for="videoUrl">Video file link (MKV):</label>
                 <input type="url" id="videoUrl" placeholder="https://example.com/video.mkv" required>
             </div>
-            <button type="submit" class="btn" id="convertBtn">🚀 Start Conversion</button>
+            <button type="submit" class="btn" id="convertBtn">
+                📥 Download & Analyze
+            </button>
         </form>
+
+        <div class="stream-selection" id="streamSelection">
+            <h3>🎯 Select Streams to Include</h3>
+
+            <div class="stream-section">
+                <h4>
+                    📹 Video Streams
+                    <span class="stream-limit-note">(Select 1 only)</span>
+                </h4>
+                <div id="videoStreams"></div>
+            </div>
+
+            <div class="stream-section">
+                <h4>
+                    🎵 Audio Streams
+                    <span class="stream-limit-note">(Select 1 or none)</span>
+                </h4>
+                <div id="audioStreams"></div>
+            </div>
+
+            <div class="stream-section">
+                <h4>
+                    📝 Subtitle Streams
+                    <span class="stream-limit-note">(Select 1 or none)</span>
+                </h4>
+                <div id="subtitleStreams"></div>
+            </div>
+
+            <button type="button" class="btn btn-secondary" id="startConversionBtn">
+                🚀 Start Conversion with Selected Streams
+            </button>
+        </div>
 
         <div class="progress-container" id="progressContainer">
             <div class="progress-info">
@@ -190,7 +411,7 @@
 
         <div id="statusMessage"></div>
 
-        <div class="history" id="historySection">
+        <div class="history" id="historySection" style="display: none;">
             <h3>📋 Conversion History</h3>
             <div id="historyList"></div>
         </div>
@@ -199,87 +420,41 @@
 
 <script>
     const socket = io();
-    const $ = id => document.getElementById(id);
-    const form = $('convertForm'), urlInput = $('videoUrl'), convertBtn = $('convertBtn');
-    const progressContainer = $('progressContainer'), progressStage = $('progressStage');
-    const progressPercentage = $('progressPercentage'), progressFill = $('progressFill');
-    const statusMessage = $('statusMessage'), historySection = $('historySection'), historyList = $('historyList');
+    const form = document.getElementById('convertForm');
+    const urlInput = document.getElementById('videoUrl');
+    const convertBtn = document.getElementById('convertBtn');
+    const streamSelection = document.getElementById('streamSelection');
+    const startConversionBtn = document.getElementById('startConversionBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressStage = document.getElementById('progressStage');
+    const progressPercentage = document.getElementById('progressPercentage');
+    const progressFill = document.getElementById('progressFill');
+    const statusMessage = document.getElementById('statusMessage');
+    const historySection = document.getElementById('historySection');
+    const historyList = document.getElementById('historyList');
 
     let currentTaskId = null;
     let taskHistory = JSON.parse(localStorage.getItem('taskHistory') || '[]');
+    let streamInfo = null;
 
-    const stages = { downloading: '📥 Downloading', converting: '🔄 Converting' };
-    const statusIcons = { processing: '⏳', downloading: '📥', converting: '🔄', completed: '✅', error: '❌' };
-    const statusText = { processing: 'Processing', downloading: 'Downloading', converting: 'Converting', completed: 'Completed', error: 'Error' };
-
-    const showMessage = (msg, type) => {
-        statusMessage.innerHTML = `<div class="status-message status-${type}">${type === 'error' ? '❌ ' : ''}${msg}</div>`;
-        progressContainer.style.display = 'none';
-    };
-
-    const resetForm = () => {
-        convertBtn.disabled = false;
-        convertBtn.innerHTML = '🚀 Start Conversion';
-        currentTaskId = null;
-    };
-
-    const updateProgress = (stage, progress) => {
-        progressStage.textContent = stages[stage] || stage;
-        progressPercentage.textContent = `${progress}%`;
-        progressFill.style.width = `${progress}%`;
-    };
-
-    const saveHistory = () => localStorage.setItem('taskHistory', JSON.stringify(taskHistory));
-
-    const updateHistoryDisplay = () => {
-        historySection.style.display = taskHistory.length ? 'block' : 'none';
-        historyList.innerHTML = taskHistory.map(task => {
-            const icon = statusIcons[task.status];
-            const text = statusText[task.status];
-            const progress = ['downloading', 'converting'].includes(task.status) ? ` (${task.progress}%)` : '';
-            const links = task.status === 'completed' ?
-                `<a href="/player/${task.id}" class="player-link">▶️ Play</a><a href="/hls/${task.id}/playlist.m3u8" class="player-link">🔽️ HLS Download</a>` : '';
-
-            return `<div class="task-item">
-                <div class="task-url">${task.url}</div>
-                <div class="task-status">
-                    <span>${icon} ${text}${progress}</span>
-                    <small>${task.timestamp}</small>
-                </div>
-                ${links}
-            </div>`;
-        }).join('');
-    };
-
-    const addToHistory = (taskId, url) => {
-        taskHistory.unshift({ id: taskId, url, status: 'processing', progress: 0, timestamp: new Date().toLocaleString('en-US') });
-        if (taskHistory.length > 10) taskHistory.pop();
-        saveHistory();
-        updateHistoryDisplay();
-    };
-
-    const updateHistoryStatus = (taskId, status, progress) => {
-        const task = taskHistory.find(t => t.id === taskId);
-        if (task) {
-            task.status = status;
-            task.progress = progress;
-            saveHistory();
-            updateHistoryDisplay();
-        }
-    };
+    // Initialize history
+    updateHistoryDisplay();
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+
         const url = urlInput.value.trim();
         if (!url) return;
 
         try {
             convertBtn.disabled = true;
-            convertBtn.innerHTML = '<span class="loading-spinner"></span> Starting...';
+            convertBtn.innerHTML = '<span class="loading-spinner"></span> Downloading...';
 
-            const response = await fetch('/convert', {
+            const response = await fetch('/download', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({ url })
             });
 
@@ -287,42 +462,331 @@
 
             if (data.task_id) {
                 currentTaskId = data.task_id;
-                progressContainer.style.display = 'block';
-                statusMessage.innerHTML = '';
+                showProgress();
                 addToHistory(data.task_id, url);
             } else {
-                showMessage('Error starting conversion', 'error');
+                showError('Error starting download');
             }
         } catch (error) {
-            showMessage('Connection error with the server', 'error');
+            showError('Connection error with the server');
             resetForm();
+        }
+    });
+
+    startConversionBtn.addEventListener('click', async () => {
+        if (!currentTaskId || !streamInfo) return;
+
+        const selectedStreams = getSelectedStreams();
+
+        // Validate selection - must have at least one video stream
+        if (selectedStreams.video.length === 0) {
+            showError('Please select at least one video stream');
+            return;
+        }
+
+        try {
+            startConversionBtn.disabled = true;
+            startConversionBtn.innerHTML = '<span class="loading-spinner"></span> Starting Conversion...';
+
+            const response = await fetch('/convert', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    task_id: currentTaskId,
+                    selected_streams: selectedStreams
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                streamSelection.style.display = 'none';
+                showProgress();
+            } else {
+                showError('Error starting conversion');
+                resetStreamSelection();
+            }
+        } catch (error) {
+            showError('Connection error with the server');
+            resetStreamSelection();
+        }
+    });
+
+    function getSelectedStreams() {
+        const selected = {
+            video: [],
+            audio: [],
+            subtitle: []
+        };
+
+        // Get selected video stream (radio button)
+        const selectedVideo = document.querySelector('input[name="video_stream"]:checked');
+        if (selectedVideo && selectedVideo.value !== 'none') {
+            selected.video.push(parseInt(selectedVideo.value));
+        }
+
+        // Get selected audio stream (radio button)
+        const selectedAudio = document.querySelector('input[name="audio_stream"]:checked');
+        if (selectedAudio && selectedAudio.value !== 'none') {
+            selected.audio.push(parseInt(selectedAudio.value));
+        }
+
+        // Get selected subtitle stream (radio button)
+        const selectedSubtitle = document.querySelector('input[name="subtitle_stream"]:checked');
+        if (selectedSubtitle && selectedSubtitle.value !== 'none') {
+            selected.subtitle.push(parseInt(selectedSubtitle.value));
+        }
+
+        return selected;
+    }
+
+    // Socket.io event handlers
+    socket.on('download_complete', (data) => {
+        if (data.task_id === currentTaskId) {
+            streamInfo = data.streams;
+            displayStreamSelection(data.streams);
+            hideProgress();
+            resetForm();
+            updateHistoryStatus(data.task_id, 'analyzing', 100);
         }
     });
 
     socket.on('progress_update', (data) => {
         if (data.task_id === currentTaskId) {
-            updateProgress(data.stage, data.progress);
+            updateProgress(data.stage, data.progress, data.message);
             updateHistoryStatus(data.task_id, data.stage, data.progress);
         }
     });
 
     socket.on('conversion_complete', (data) => {
         if (data.task_id === currentTaskId) {
-            showMessage(`Conversion complete! <a href="/player/${data.task_id}" class="player-link">▶️ Play Video</a><a href="/hls/${data.task_id}/playlist.m3u8" class="player-link">🔽️ HLS Download</a>`, 'success');
+            showSuccess(`Conversion complete! <a href="/player/${data.task_id}" class="player-link">▶️ Play Video</a><a href="/hls/${data.task_id}/master.m3u8" class="player-link">🔽️ HLS Download</a>`);
             updateHistoryStatus(data.task_id, 'completed', 100);
-            resetForm();
+            resetAll();
         }
     });
 
     socket.on('error', (data) => {
         if (data.task_id === currentTaskId) {
-            showMessage(data.message, 'error');
+            showError(data.message);
             updateHistoryStatus(data.task_id, 'error', 0);
-            resetForm();
+            resetAll();
         }
     });
 
-    updateHistoryDisplay();
+    function displayStreamSelection(streams) {
+        displayVideoStreams(streams.video);
+        displayAudioStreams(streams.audio);
+        displaySubtitleStreams(streams.subtitle);
+        streamSelection.style.display = 'block';
+    }
+
+    function displayVideoStreams(videos) {
+        const container = document.getElementById('videoStreams');
+        container.innerHTML = videos.map((stream, index) => `
+            <div class="stream-option">
+                <input type="radio" name="video_stream" id="video_${stream.index}" value="${stream.index}" ${index === 0 ? 'checked' : ''}>
+                <div class="stream-info">
+                    <div class="stream-title">Video Stream ${stream.index}</div>
+                    <div class="stream-details">
+                        ${stream.codec} • ${stream.width}x${stream.height}${stream.fps ? ` • ${stream.fps} fps` : ''}${stream.bitrate ? ` • ${stream.bitrate}` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function displayAudioStreams(audios) {
+        const container = document.getElementById('audioStreams');
+
+        // Add "No Audio" option
+        let html = `
+            <div class="stream-option no-selection-option">
+                <input type="radio" name="audio_stream" id="audio_none" value="none">
+                <div class="stream-info">
+                    <div class="stream-title">No Audio Stream</div>
+                    <div class="stream-details">Skip audio track</div>
+                </div>
+            </div>
+        `;
+
+        html += audios.map((stream, index) => `
+            <div class="stream-option">
+                <input type="radio" name="audio_stream" id="audio_${stream.index}" value="${stream.index}" ${index === 0 ? 'checked' : ''}>
+                <div class="stream-info">
+                    <div class="stream-title">
+                        ${stream.title || `Audio Stream ${stream.index}`}
+                        ${stream.language ? ` (${stream.language})` : ''}
+                    </div>
+                    <div class="stream-details">
+                        ${stream.codec}${stream.channels ? ` • ${stream.channels} channels` : ''}${stream.sample_rate ? ` • ${stream.sample_rate} Hz` : ''}${stream.bitrate ? ` • ${stream.bitrate}` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = html;
+    }
+
+    function displaySubtitleStreams(subtitles) {
+        const container = document.getElementById('subtitleStreams');
+
+        // Add "No Subtitles" option
+        let html = `
+            <div class="stream-option no-selection-option">
+                <input type="radio" name="subtitle_stream" id="subtitle_none" value="none" checked>
+                <div class="stream-info">
+                    <div class="stream-title">No Subtitle Stream</div>
+                    <div class="stream-details">Skip subtitle track</div>
+                </div>
+            </div>
+        `;
+
+        if (subtitles.length === 0) {
+            container.innerHTML = html;
+            return;
+        }
+
+        html += subtitles.map(stream => `
+            <div class="stream-option">
+                <input type="radio" name="subtitle_stream" id="subtitle_${stream.index}" value="${stream.index}">
+                <div class="stream-info">
+                    <div class="stream-title">
+                        ${stream.title || `Subtitle Stream ${stream.index}`}
+                        ${stream.language ? ` (${stream.language})` : ''}
+                    </div>
+                    <div class="stream-details">
+                        ${stream.codec}${stream.forced ? ' • Forced' : ''}${stream.hearing_impaired ? ' • SDH' : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = html;
+    }
+
+    function showProgress() {
+        progressContainer.style.display = 'block';
+        statusMessage.innerHTML = '';
+    }
+
+    function hideProgress() {
+        progressContainer.style.display = 'none';
+    }
+
+    function updateProgress(stage, progress, message) {
+        const stageNames = {
+            'downloading': '📥 Downloading',
+            'analyzing': '🔍 Analyzing',
+            'converting': '🔄 Converting'
+        };
+
+        progressStage.textContent = stageNames[stage] || stage;
+        progressPercentage.textContent = `${progress}%`;
+        progressFill.style.width = `${progress}%`;
+    }
+
+    function showSuccess(message) {
+        statusMessage.innerHTML = `<div class="status-message status-success">${message}</div>`;
+        progressContainer.style.display = 'none';
+        streamSelection.style.display = 'none';
+    }
+
+    function showError(message) {
+        statusMessage.innerHTML = `<div class="status-message status-error">❌ ${message}</div>`;
+        progressContainer.style.display = 'none';
+        streamSelection.style.display = 'none';
+    }
+
+    function resetForm() {
+        convertBtn.disabled = false;
+        convertBtn.innerHTML = '📥 Download & Analyze';
+    }
+
+    function resetStreamSelection() {
+        startConversionBtn.disabled = false;
+        startConversionBtn.innerHTML = '🚀 Start Conversion with Selected Streams';
+    }
+
+    function resetAll() {
+        resetForm();
+        resetStreamSelection();
+        streamSelection.style.display = 'none';
+        currentTaskId = null;
+        streamInfo = null;
+    }
+
+    function addToHistory(taskId, url) {
+        const task = {
+            id: taskId,
+            url: url,
+            status: 'processing',
+            progress: 0,
+            timestamp: new Date().toLocaleString('en-US')
+        };
+
+        taskHistory.unshift(task);
+        if (taskHistory.length > 10) taskHistory.pop();
+
+        localStorage.setItem('taskHistory', JSON.stringify(taskHistory));
+        updateHistoryDisplay();
+    }
+
+    function updateHistoryStatus(taskId, status, progress) {
+        const task = taskHistory.find(t => t.id === taskId);
+        if (task) {
+            task.status = status;
+            task.progress = progress;
+            localStorage.setItem('taskHistory', JSON.stringify(taskHistory));
+            updateHistoryDisplay();
+        }
+    }
+
+    function updateHistoryDisplay() {
+        if (taskHistory.length === 0) {
+            historySection.style.display = 'none';
+            return;
+        }
+
+        historySection.style.display = 'block';
+
+        historyList.innerHTML = taskHistory.map(task => {
+            const statusIcon = {
+                'processing': '⏳',
+                'downloading': '📥',
+                'analyzing': '🔍',
+                'converting': '🔄',
+                'completed': '✅',
+                'error': '❌'
+            };
+
+            const statusText = {
+                'processing': 'Processing',
+                'downloading': `Downloading (${task.progress}%)`,
+                'analyzing': `Analyzing (${task.progress}%)`,
+                'converting': `Converting (${task.progress}%)`,
+                'completed': 'Completed',
+                'error': 'Error'
+            };
+
+            const playButton = task.status === 'completed'
+                ? `<a href="/player/${task.id}" class="player-link">▶️ Play</a><a href="/hls/${task.id}/master.m3u8" class="player-link">🔽️ HLS Download</a>`
+                : '';
+
+            return `
+                <div class="task-item">
+                    <div class="task-url">${task.url}</div>
+                    <div class="task-status">
+                        <span>${statusIcon[task.status]} ${statusText[task.status]}</span>
+                        <small>${task.timestamp}</small>
+                    </div>
+                    ${playButton}
+                </div>
+            `;
+        }).join('');
+    }
 </script>
 </body>
 </html>

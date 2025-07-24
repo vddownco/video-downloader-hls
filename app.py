@@ -282,7 +282,7 @@ def convert_to_hls(task_id, selected_streams):
 
         # Subtitle streams
         for subtitle_index in selected_streams.get('subtitle', []):
-            map_args.extend(['-map', f'0:s:{subtitle_index-vidLen-audLen}'])
+            map_args.extend(['-map', f'0:s:{subtitle_index-vidLen-audLen-1}'])
 
         # If no streams selected, use defaults
         if not map_args:
