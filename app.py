@@ -256,7 +256,7 @@ def generate_first_subtitle_segment(task_id):
     with open(playlist_path, 'w', encoding='utf-8') as f:
         f.write(content)
 
-def convert_to_hls(task_id, selected_streams):
+def convert_to_hls(task_id, selected_streams, total_stream_counts):
     try:
         if task_id not in tasks:
             raise Exception('Task not found')
@@ -274,7 +274,6 @@ def convert_to_hls(task_id, selected_streams):
         os.makedirs(hls_dir, exist_ok=True)
 
         playlist_file = os.path.join(hls_dir, 'playlist.m3u8')
-        segment_pattern = os.path.join(hls_dir, 'segment_%03d.ts')
 
         # Build FFmpeg command with selected streams
         ffmpeg_cmd = ['ffmpeg', '-i', input_file]
@@ -282,8 +281,8 @@ def convert_to_hls(task_id, selected_streams):
         # Add stream mappings based on selection
         map_args = []
 
-        vidLen = len(selected_streams.get('video', []))
-        audLen = len(selected_streams.get('audio', []))
+        video_stream_count = total_stream_counts.get('video', 0)
+        audio_stream_count = total_stream_counts.get('audio', 0)
 
         # Video streams
         for video_index in selected_streams.get('video', []):
@@ -291,11 +290,11 @@ def convert_to_hls(task_id, selected_streams):
 
         # Audio streams
         for audio_index in selected_streams.get('audio', []):
-            map_args.extend(['-map', f'0:a:{audio_index-vidLen}'])
+            map_args.extend(['-map', f'0:a:{audio_index-video_stream_count}'])
 
         # Subtitle streams
         for subtitle_index in selected_streams.get('subtitle', []):
-            map_args.extend(['-map', f'0:s:{subtitle_index-vidLen-audLen-1}'])
+            map_args.extend(['-map', f'0:s:{subtitle_index-video_stream_count-audio_stream_count}'])
 
         # If no streams selected, use defaults
         if not map_args:
@@ -408,6 +407,7 @@ def convert_video():
     data = request.json
     task_id = data.get('task_id')
     selected_streams = data.get('selected_streams', {})
+    total_stream_counts = data.get('total_stream_counts', {})
 
     if not task_id:
         return jsonify({'error': 'No task ID provided'}), 400
@@ -418,7 +418,7 @@ def convert_video():
     if tasks[task_id]['status'] != 'ready_for_conversion':
         return jsonify({'error': 'Task not ready for conversion'}), 400
 
-    thread = threading.Thread(target=convert_to_hls, args=(task_id, selected_streams))
+    thread = threading.Thread(target=convert_to_hls, args=(task_id, selected_streams, total_stream_counts))
     thread.daemon = True
     thread.start()
 

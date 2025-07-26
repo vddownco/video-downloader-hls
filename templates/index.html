@@ -495,7 +495,12 @@
                 },
                 body: JSON.stringify({
                     task_id: currentTaskId,
-                    selected_streams: selectedStreams
+                    selected_streams: selectedStreams,
+                    total_stream_counts: {
+                        video: streamInfo.video.length,
+                        audio: streamInfo.audio.length,
+                        subtitle: streamInfo.subtitle.length
+                    }
                 })
             });
 
