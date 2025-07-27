@@ -320,6 +320,19 @@ def parse_ffmpeg_progress(line, duration_seconds):
             return progress
     return None
 
+def generate_first_subtitle_segment(task_id):
+    hls_dir = os.path.join(HLS_FOLDER, task_id)
+    playlist_path = os.path.join(hls_dir, 'playlist0.vtt')
+
+    content = (
+        "WEBVTT\n\n"
+        "00:00.000 --> 00:05.000\n"
+        "Streaming...\n"
+    )
+
+    with open(playlist_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+
 def convert_to_hls(task_id, selected_streams, total_stream_counts):
     try:
         if task_id not in tasks:
@@ -424,6 +437,7 @@ def convert_to_hls(task_id, selected_streams, total_stream_counts):
             tasks[task_id]['hls_path'] = task_id
             tasks[task_id]['playlist_url'] = f'/hls/{task_id}/playlist.m3u8'
 
+            generate_first_subtitle_segment(task_id)
             generate_master_playlist(task_id)
 
             socketio.emit('conversion_complete', {
@@ -454,8 +468,9 @@ def generate_master_playlist(task_id):
 
     content = (
         '#EXTM3U\n'
-        f'#EXT-X-STREAM-INF:BANDWIDTH={bandwidth}\n'
+        f'#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},SUBTITLES="subs"\n'
         'playlist.m3u8\n'
+        '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="default",DEFAULT=YES,AUTOSELECT=YES,URI="playlist_vtt.m3u8"\n'
     )
 
     with open(master_path, 'w', encoding='utf-8') as f:
