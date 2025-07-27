@@ -46,6 +46,36 @@
             font-size: 1.1rem;
         }
 
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .connection-status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .connection-status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .connection-status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
         .content {
             padding: 40px;
         }
@@ -90,7 +120,7 @@
             width: 100%;
         }
 
-        .btn:hover {
+        .btn:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
@@ -106,7 +136,7 @@
             margin-top: 15px;
         }
 
-        .btn-secondary:hover {
+        .btn-secondary:hover:not(:disabled) {
             background: #218838;
             box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
         }
@@ -211,6 +241,12 @@
         .progress-percentage {
             font-weight: 600;
             color: #667eea;
+        }
+
+        .progress-details {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
         }
 
         .progress-bar {
@@ -326,6 +362,7 @@
             word-break: break-all;
             color: #666;
             margin-bottom: 8px;
+            font-size: 0.9rem;
         }
 
         .task-status {
@@ -347,9 +384,26 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        .retry-button {
+            background: #ffc107;
+            color: #212529;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: 10px;
+        }
+
+        .retry-button:hover {
+            background: #e0a800;
+        }
     </style>
 </head>
 <body>
+<div class="connection-status" id="connectionStatus">Connecting...</div>
+
 <div class="container">
     <div class="header">
         <h1>🎬 Video Converter</h1>
@@ -404,6 +458,7 @@
                 <span class="progress-stage" id="progressStage">Preparing...</span>
                 <span class="progress-percentage" id="progressPercentage">0%</span>
             </div>
+            <div class="progress-details" id="progressDetails"></div>
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
@@ -419,7 +474,169 @@
 </div>
 
 <script>
-    const socket = io();
+    // Improved WebSocket connection with reconnection logic
+    class StableSocketConnection {
+        constructor() {
+            this.socket = null;
+            this.reconnectAttempts = 0;
+            this.maxReconnectAttempts = 5;
+            this.reconnectDelay = 1000;
+            this.isConnecting = false;
+            this.connectionStatus = document.getElementById('connectionStatus');
+            this.init();
+        }
+
+        init() {
+            this.connect();
+        }
+
+        connect() {
+            if (this.isConnecting) return;
+
+            this.isConnecting = true;
+            this.updateConnectionStatus('connecting');
+
+            this.socket = io({
+                timeout: 30000,
+                transports: ['websocket', 'polling'],
+                upgrade: true,
+                rememberUpgrade: true,
+                forceNew: true
+            });
+
+            this.setupEventHandlers();
+        }
+
+        setupEventHandlers() {
+            this.socket.on('connect', () => {
+                console.log('Socket connected');
+                this.reconnectAttempts = 0;
+                this.isConnecting = false;
+                this.updateConnectionStatus('connected');
+
+                // Send ping to keep connection alive
+                this.startPingInterval();
+            });
+
+            this.socket.on('disconnect', (reason) => {
+                console.log('Socket disconnected:', reason);
+                this.updateConnectionStatus('disconnected');
+                this.stopPingInterval();
+
+                if (reason === 'io server disconnect') {
+                    // Server disconnected, try to reconnect
+                    this.scheduleReconnect();
+                }
+            });
+
+            this.socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                this.isConnecting = false;
+                this.updateConnectionStatus('disconnected');
+                this.scheduleReconnect();
+            });
+
+            // Application-specific handlers
+            this.socket.on('download_complete', (data) => {
+                if (data.task_id === currentTaskId) {
+                    streamInfo = data.streams;
+                    displayStreamSelection(data.streams);
+                    hideProgress();
+                    resetForm();
+                    updateHistoryStatus(data.task_id, 'analyzing', 100);
+                }
+            });
+
+            this.socket.on('progress_update', (data) => {
+                if (data.task_id === currentTaskId) {
+                    updateProgress(data.stage, data.progress, data.message);
+                    updateHistoryStatus(data.task_id, data.stage, data.progress);
+                }
+            });
+
+            this.socket.on('conversion_complete', (data) => {
+                if (data.task_id === currentTaskId) {
+                    showSuccess(`Conversion complete! <a href="/player/${data.task_id}" class="player-link">▶️ Play Video</a><a href="/hls/${data.task_id}/master.m3u8" class="player-link">🔽️ HLS Download</a>`);
+                    updateHistoryStatus(data.task_id, 'completed', 100);
+                    resetAll();
+                }
+            });
+
+            this.socket.on('error', (data) => {
+                if (data.task_id === currentTaskId) {
+                    showError(data.message);
+                    updateHistoryStatus(data.task_id, 'error', 0);
+                    resetAll();
+                }
+            });
+
+            this.socket.on('pong', () => {
+                // Keep-alive response
+            });
+        }
+
+        startPingInterval() {
+            this.pingInterval = setInterval(() => {
+                if (this.socket && this.socket.connected) {
+                    this.socket.emit('ping');
+                }
+            }, 25000); // Ping every 25 seconds
+        }
+
+        stopPingInterval() {
+            if (this.pingInterval) {
+                clearInterval(this.pingInterval);
+                this.pingInterval = null;
+            }
+        }
+
+        scheduleReconnect() {
+            if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                console.log('Max reconnection attempts reached');
+                this.updateConnectionStatus('disconnected');
+                return;
+            }
+
+            this.reconnectAttempts++;
+            const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+
+            console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
+
+            setTimeout(() => {
+                if (!this.socket || !this.socket.connected) {
+                    this.connect();
+                }
+            }, delay);
+        }
+
+        updateConnectionStatus(status) {
+            this.connectionStatus.className = `connection-status ${status}`;
+
+            switch (status) {
+                case 'connected':
+                    this.connectionStatus.textContent = '🟢 Connected';
+                    break;
+                case 'connecting':
+                    this.connectionStatus.textContent = '🟡 Connecting...';
+                    break;
+                case 'disconnected':
+                    this.connectionStatus.textContent = '🔴 Disconnected';
+                    break;
+            }
+        }
+
+        disconnect() {
+            this.stopPingInterval();
+            if (this.socket) {
+                this.socket.disconnect();
+            }
+        }
+    }
+
+    // Initialize stable socket connection
+    const socketConnection = new StableSocketConnection();
+
+    // Application variables
     const form = document.getElementById('convertForm');
     const urlInput = document.getElementById('videoUrl');
     const convertBtn = document.getElementById('convertBtn');
@@ -428,23 +645,35 @@
     const progressContainer = document.getElementById('progressContainer');
     const progressStage = document.getElementById('progressStage');
     const progressPercentage = document.getElementById('progressPercentage');
+    const progressDetails = document.getElementById('progressDetails');
     const progressFill = document.getElementById('progressFill');
     const statusMessage = document.getElementById('statusMessage');
     const historySection = document.getElementById('historySection');
     const historyList = document.getElementById('historyList');
 
     let currentTaskId = null;
-    let taskHistory = JSON.parse(localStorage.getItem('taskHistory') || '[]');
     let streamInfo = null;
 
-    // Initialize history
+    // Use memory storage instead of localStorage for artifacts compatibility
+    let taskHistory = [];
+
+    // Initialize history (in real app, this would load from server)
     updateHistoryDisplay();
+
+    // Debounced form submission to prevent double-clicks
+    let isSubmitting = false;
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        if (isSubmitting) return;
+        isSubmitting = true;
+
         const url = urlInput.value.trim();
-        if (!url) return;
+        if (!url) {
+            isSubmitting = false;
+            return;
+        }
 
         try {
             convertBtn.disabled = true;
@@ -465,22 +694,30 @@
                 showProgress();
                 addToHistory(data.task_id, url);
             } else {
-                showError('Error starting download');
+                showError(data.error || 'Error starting download');
             }
         } catch (error) {
+            console.error('Download error:', error);
             showError('Connection error with the server');
             resetForm();
+        } finally {
+            isSubmitting = false;
         }
     });
 
+    // Debounced conversion start
+    let isConverting = false;
+
     startConversionBtn.addEventListener('click', async () => {
-        if (!currentTaskId || !streamInfo) return;
+        if (isConverting || !currentTaskId || !streamInfo) return;
+        isConverting = true;
 
         const selectedStreams = getSelectedStreams();
 
         // Validate selection - must have at least one video stream
         if (selectedStreams.video.length === 0) {
             showError('Please select at least one video stream');
+            isConverting = false;
             return;
         }
 
@@ -510,12 +747,15 @@
                 streamSelection.style.display = 'none';
                 showProgress();
             } else {
-                showError('Error starting conversion');
+                showError(data.error || 'Error starting conversion');
                 resetStreamSelection();
             }
         } catch (error) {
+            console.error('Conversion error:', error);
             showError('Connection error with the server');
             resetStreamSelection();
+        } finally {
+            isConverting = false;
         }
     });
 
@@ -546,40 +786,6 @@
 
         return selected;
     }
-
-    // Socket.io event handlers
-    socket.on('download_complete', (data) => {
-        if (data.task_id === currentTaskId) {
-            streamInfo = data.streams;
-            displayStreamSelection(data.streams);
-            hideProgress();
-            resetForm();
-            updateHistoryStatus(data.task_id, 'analyzing', 100);
-        }
-    });
-
-    socket.on('progress_update', (data) => {
-        if (data.task_id === currentTaskId) {
-            updateProgress(data.stage, data.progress, data.message);
-            updateHistoryStatus(data.task_id, data.stage, data.progress);
-        }
-    });
-
-    socket.on('conversion_complete', (data) => {
-        if (data.task_id === currentTaskId) {
-            showSuccess(`Conversion complete! <a href="/player/${data.task_id}" class="player-link">▶️ Play Video</a><a href="/hls/${data.task_id}/master.m3u8" class="player-link">🔽️ HLS Download</a>`);
-            updateHistoryStatus(data.task_id, 'completed', 100);
-            resetAll();
-        }
-    });
-
-    socket.on('error', (data) => {
-        if (data.task_id === currentTaskId) {
-            showError(data.message);
-            updateHistoryStatus(data.task_id, 'error', 0);
-            resetAll();
-        }
-    });
 
     function displayStreamSelection(streams) {
         displayVideoStreams(streams.video);
@@ -690,7 +896,12 @@
 
         progressStage.textContent = stageNames[stage] || stage;
         progressPercentage.textContent = `${progress}%`;
-        progressFill.style.width = `${progress}%`;
+        progressDetails.textContent = message || '';
+
+        // Smooth progress bar animation
+        requestAnimationFrame(() => {
+            progressFill.style.width = `${progress}%`;
+        });
     }
 
     function showSuccess(message) {
@@ -735,7 +946,6 @@
         taskHistory.unshift(task);
         if (taskHistory.length > 10) taskHistory.pop();
 
-        localStorage.setItem('taskHistory', JSON.stringify(taskHistory));
         updateHistoryDisplay();
     }
 
@@ -744,7 +954,6 @@
         if (task) {
             task.status = status;
             task.progress = progress;
-            localStorage.setItem('taskHistory', JSON.stringify(taskHistory));
             updateHistoryDisplay();
         }
     }
@@ -792,6 +1001,23 @@
             `;
         }).join('');
     }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        socketConnection.disconnect();
+    });
+
+    // Handle visibility change to manage connections
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            // Page is hidden, reduce activity
+        } else {
+            // Page is visible, ensure connection is active
+            if (!socketConnection.socket || !socketConnection.socket.connected) {
+                socketConnection.connect();
+            }
+        }
+    });
 </script>
 </body>
 </html>
